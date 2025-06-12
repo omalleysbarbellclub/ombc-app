@@ -1,67 +1,60 @@
 import React, { useEffect, useState } from 'react';
-import { getFirestore, collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
-import { auth } from './firebase';
+import { collection, query, where, orderBy, limit, addDoc } from 'firebase/firestore';
+import { db } from './firebase';
+import { useAuth } from './UserContext';
+import { useNavigate } from 'react-router-dom';
 
-const RepeatLastSession = () => {
-  const [lastWorkout, setLastWorkout] = useState<any>(null);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  const db = getFirestore();
+const RepeatSession: React.FC = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [latest, setLatest] = useState<any>(null);
 
   useEffect(() => {
-    const fetchLastWorkout = async () => {
-      try {
-        const user = auth.currentUser;
-        if (!user) throw new Error('User not logged in');
+    const fetchLatest = async () => {
+      if (!user) return;
 
-        const q = query(
-          collection(db, 'WorkoutLogs'),
-          where('userId', '==', user.uid),
-          orderBy('workoutDate', 'desc'),
-          limit(1)
-        );
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          setLastWorkout(snapshot.docs[0].data());
-        } else {
-          setError('No previous session found.');
-        }
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
+      const q = query(
+        collection(db, 'sessions'),
+        where('uid', '==', user.uid),
+        orderBy('createdAt', 'desc'),
+        limit(1)
+      );
+
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        setLatest(snap.docs[0].data());
       }
     };
 
-    fetchLastWorkout();
-  }, []);
+    fetchLatest();
+  }, [user]);
+
+  const handleRepeat = async () => {
+    if (!user || !latest) return;
+
+    await addDoc(collection(db, 'sessions'), {
+      ...latest,
+      createdAt: new Date(),
+    });
+
+    navigate('/dashboard');
+  };
 
   return (
     <div>
       <h2>Repeat Last Session</h2>
-      {loading && <p>Loading last session...</p>}
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      {lastWorkout && (
-        <div>
-          <p><strong>Session:</strong> {lastWorkout.sessionTitleSnapshot || 'Untitled'}</p>
-          <p><strong>Date:</strong> {new Date(lastWorkout.workoutDate.seconds * 1000).toLocaleString()}</p>
-          {lastWorkout.loggedExercises.map((exercise: any, i: number) => (
-            <div key={i}>
-              <h4>{exercise.exerciseName}</h4>
-              <ul>
-                {exercise.sets.map((set: any, j: number) => (
-                  <li key={j}>
-                    Weight: {set.loggedWeight}kg, Reps: {set.loggedReps}, RPE: {set.rpe}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
+      {latest ? (
+        <>
+          <p>
+            <strong>{latest.lift}</strong>: {latest.weight}kg × {latest.reps} @ RPE {latest.rpe}
+          </p>
+          <button onClick={handleRepeat}>Repeat This Session</button>
+        </>
+      ) : (
+        <p>No session found to repeat.</p>
       )}
     </div>
   );
 };
 
-export default RepeatLastSession;
+export default RepeatSession;
