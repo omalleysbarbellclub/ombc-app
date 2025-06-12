@@ -1,38 +1,28 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './Login';
-import Signup from './Signup';
 import Dashboard from './Dashboard';
-import LogSession from './LogSession';
-import RepeatLastSession from './RepeatLastSession';
-import SessionHistory from './SessionHistory';
-import PrivateRoute from './PrivateRoute';
 import CoachDashboard from './CoachDashboard';
+import LogSession from './LogSession';
+import SessionHistory from './SessionHistory';
+import RepeatSession from './RepeatSession';
+import { useAuth } from './UserContext';
 
-function App() {
+const App: React.FC = () => {
+  const { user } = useAuth();
+
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/dashboard" element={
-          <PrivateRoute><Dashboard /></PrivateRoute>
-        } />
-        <Route path="/log-session" element={
-          <PrivateRoute><LogSession /></PrivateRoute>
-        } />
-        <Route path="/repeat-session" element={
-          <PrivateRoute><RepeatLastSession /></PrivateRoute>
-        } />
-        <Route path="/session-history" element={
-          <PrivateRoute><SessionHistory /></PrivateRoute>
-        } />
-        <Route path="/coach-dashboard" element={
-          <PrivateRoute><CoachDashboard /></PrivateRoute>
-        } />
+        <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Login />} />
+        <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/" />} />
+        <Route path="/coach-dashboard" element={user ? <CoachDashboard /> : <Navigate to="/" />} />
+        <Route path="/log" element={user ? <LogSession /> : <Navigate to="/" />} />
+        <Route path="/history" element={user ? <SessionHistory /> : <Navigate to="/" />} />
+        <Route path="/repeat" element={user ? <RepeatSession /> : <Navigate to="/" />} />
       </Routes>
     </Router>
   );
-}
+};
 
 export default App;
