@@ -5,7 +5,7 @@ import Dashboard from './Dashboard';
 import CoachDashboard from './CoachDashboard';
 import LogSession from './LogSession';
 import SessionHistory from './SessionHistory';
-import RepeatSession from './RepeatSession';
+import RepeatLastSession from './RepeatSession';
 import { useAuth } from './UserContext';
 
 const App: React.FC = () => {
