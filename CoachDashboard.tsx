@@ -1,86 +1,78 @@
 import React, { useEffect, useState } from 'react';
-import { getFirestore, collection, getDocs, doc, updateDoc } from 'firebase/firestore';
-import ProgramAssignment from './ProgramAssignment';
+import { db } from './firebase';
+import {
+  collection,
+  getDocs,
+  doc,
+  updateDoc,
+} from 'firebase/firestore';
 
-const CoachDashboard = () => {
-  const [clients, setClients] = useState<any[]>([]);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [success, setSuccess] = useState('');
+interface Client {
+  id: string;
+  email: string;
+  program: string;
+  ptSessions: number;
+}
 
-  const db = getFirestore();
-
-  const fetchClients = async () => {
-    try {
-      const snapshot = await getDocs(collection(db, 'UserProfile'));
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setClients(data);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+const CoachDashboard: React.FC = () => {
+  const [clients, setClients] = useState<Client[]>([]);
+  const [selectedProgram, setSelectedProgram] = useState<string>('');
 
   useEffect(() => {
+    const fetchClients = async () => {
+      const snapshot = await getDocs(collection(db, 'clients'));
+      const data: Client[] = [];
+      snapshot.forEach((docSnap) => {
+        const d = docSnap.data();
+        data.push({
+          id: docSnap.id,
+          email: d.email,
+          program: d.program || '',
+          ptSessions: d.ptSessions || 0,
+        });
+      });
+      setClients(data);
+    };
+
     fetchClients();
   }, []);
 
-  const handlePTSessionComplete = async (clientId: string, currentPT: number) => {
-    try {
-      const newCount = Math.max(currentPT - 1, 0);
-      await updateDoc(doc(db, 'UserProfile', clientId), {
-        remainingPT: newCount
-      });
-      setSuccess('✅ PT session marked complete.');
-      fetchClients(); // refresh UI
-    } catch (err: any) {
-      setError(`❌ ${err.message}`);
-    }
+  const assignProgram = async (clientId: string) => {
+    if (!selectedProgram) return;
+    const ref = doc(db, 'clients', clientId);
+    await updateDoc(ref, { program: selectedProgram });
+    alert('Program assigned!');
+  };
+
+  const markPTSession = async (clientId: string) => {
+    const ref = doc(db, 'clients', clientId);
+    const client = clients.find((c) => c.id === clientId);
+    if (!client) return;
+    const newCount = Math.max(0, client.ptSessions - 1);
+    await updateDoc(ref, { ptSessions: newCount });
+    alert('PT session checked off!');
   };
 
   return (
     <div>
       <h2>Coach Dashboard</h2>
-      {loading && <p>Loading clients...</p>}
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      {success && <p style={{ color: 'green' }}>{success}</p>}
-      {clients.length > 0 ? (
-        <table border="1" cellPadding="8">
-          <thead>
-            <tr>
-              <th>Email</th>
-              <th>Membership</th>
-              <th>Program Assigned</th>
-              <th>Remaining PT Sessions</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {clients.map((client, index) => (
-              <tr key={index}>
-                <td>{client.email || 'N/A'}</td>
-                <td>{client.membershipPlan || 'N/A'}</td>
-                <td>{client.programStatus || 'Not Assigned'}</td>
-                <td>{client.remainingPT ?? 0}</td>
-                <td>
-                  <button onClick={() => handlePTSessionComplete(client.id, client.remainingPT ?? 0)}>
-                    Complete PT Session
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        !loading && <p>No clients found.</p>
-      )}
-
-      <hr />
-      <ProgramAssignment />
+      <label>
+        Program to assign:
+        <input
+          value={selectedProgram}
+          onChange={(e) => setSelectedProgram(e.target.value)}
+          placeholder="e.g. LTL or HLM P3"
+        />
+      </label>
+      {clients.map((client) => (
+        <div key={client.id} style={{ border: '1px solid #ccc', padding: '8px', marginTop: '10px' }}>
+          <p><strong>{client.email}</strong></p>
+          <p>Program: {client.program || 'None'}</p>
+          <p>PT Sessions Left: {client.ptSessions}</p>
+          <button onClick={() => assignProgram(client.id)}>Assign Program</button>
+          <button onClick={() => markPTSession(client.id)}>Check Off PT Session</button>
+        </div>
+      ))}
     </div>
   );
 };
