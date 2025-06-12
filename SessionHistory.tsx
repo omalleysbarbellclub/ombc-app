@@ -1,74 +1,73 @@
 import React, { useEffect, useState } from 'react';
-import { getFirestore, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
-import { auth } from './firebase';
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { db } from './firebase';
+import { useAuth } from './UserContext';
 
-const SessionHistory = () => {
-  const [logs, setLogs] = useState<any[]>([]);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+type Session = {
+  id: string;
+  lift: string;
+  weight: number;
+  reps: number;
+  rpe: number;
+  createdAt: any;
+};
 
-  const db = getFirestore();
+const SessionHistory: React.FC = () => {
+  const { user } = useAuth();
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [prs, setPRs] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    const fetchLogs = async () => {
-      try {
-        const user = auth.currentUser;
-        if (!user) throw new Error('User not logged in');
+    const fetchSessions = async () => {
+      if (!user) return;
 
-        const q = query(
-          collection(db, 'WorkoutLogs'),
-          where('userId', '==', user.uid),
-          orderBy('workoutDate', 'desc')
-        );
+      const q = query(
+        collection(db, 'sessions'),
+        where('uid', '==', user.uid),
+        orderBy('createdAt', 'desc')
+      );
+      const querySnapshot = await getDocs(q);
+      const fetched: Session[] = [];
+      const prMap: Record<string, number> = {};
 
-        const snapshot = await getDocs(q);
-        const history: any[] = [];
-
-        snapshot.forEach(doc => {
-          history.push(doc.data());
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        const estimated1RM = data.weight * (1 + data.reps / 30);
+        if (!prMap[data.lift] || estimated1RM > prMap[data.lift]) {
+          prMap[data.lift] = estimated1RM;
+        }
+        fetched.push({
+          id: doc.id,
+          lift: data.lift,
+          weight: data.weight,
+          reps: data.reps,
+          rpe: data.rpe,
+          createdAt: data.createdAt?.toDate(),
         });
+      });
 
-        setLogs(history);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
+      setSessions(fetched);
+      setPRs(prMap);
     };
 
-    fetchLogs();
-  }, []);
+    fetchSessions();
+  }, [user]);
 
   return (
     <div>
       <h2>Session History</h2>
-      {loading && <p>Loading...</p>}
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      {logs.length > 0 ? (
-        <ul>
-          {logs.map((log, index) => (
-            <li key={index}>
-              <strong>{log.sessionTitleSnapshot || 'Untitled Session'}</strong> — {new Date(log.workoutDate.seconds * 1000).toLocaleDateString()}
-              <ul>
-                {log.loggedExercises.map((exercise: any, i: number) => (
-                  <li key={i}>
-                    {exercise.exerciseName}:
-                    <ul>
-                      {exercise.sets.map((set: any, j: number) => (
-                        <li key={j}>
-                          {set.loggedWeight}kg × {set.loggedReps} reps (RPE {set.rpe})
-                        </li>
-                      ))}
-                    </ul>
-                  </li>
-                ))}
-              </ul>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        !loading && <p>No past sessions found.</p>
-      )}
+      {sessions.map((session) => {
+        const estimated1RM = session.weight * (1 + session.reps / 30);
+        const isPR = estimated1RM >= prs[session.lift];
+        return (
+          <div key={session.id} style={{ marginBottom: '10px' }}>
+            <strong>{session.lift}</strong>: {session.weight}kg × {session.reps} @ RPE {session.rpe}
+            {isPR && <span style={{ color: 'green', marginLeft: '10px' }}>🔥 New PR!</span>}
+            <br />
+            <small>{session.createdAt?.toLocaleString()}</small>
+          </div>
+        );
+      })}
     </div>
   );
 };
