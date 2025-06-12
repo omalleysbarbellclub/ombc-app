@@ -1,27 +1,18 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import PRDetection from './PRDetection';
-import MembershipPlan from './MembershipPlan';
+import { useAuth } from './UserContext';
+import { useNavigate } from 'react-router-dom';
 
-const Dashboard = () => {
+const Dashboard: React.FC = () => {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
   return (
     <div>
-      <h2>Client Dashboard</h2>
-      <p>Welcome to your training dashboard.</p>
-      <Link to="/log-session">
-        <button>Start Next Session</button>
-      </Link><br /><br />
-      <Link to="/repeat-session">
-        <button>Repeat Last Session</button>
-      </Link><br /><br />
-      <Link to="/session-history">
-        <button>View Session History</button>
-      </Link>
-
-      <hr />
-      <PRDetection />
-      <hr />
-      <MembershipPlan />
+      <h2>Welcome, {user?.email}</h2>
+      <button onClick={() => navigate('/log')}>Log Session</button>
+      <button onClick={() => navigate('/history')}>View Session History</button>
+      <button onClick={() => navigate('/repeat')}>Repeat Last Session</button>
+      <button onClick={logout}>Log Out</button>
     </div>
   );
 };
